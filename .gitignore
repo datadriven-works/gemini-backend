@@ -1,0 +1,7 @@
+backend/terraform/.terraform
+backend/terraform/terraform.tfstate
+backend/terraform/.terraform.lock.hcl
+.vertex_cf_auth_token
+cloud-function/.venv
+.venv
+backend/terraform/terraform.tfstate.backup
