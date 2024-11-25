@@ -110,9 +110,9 @@ resource "google_cloudfunctions2_function" "default" {
   service_config {
     max_instance_count               = 10
     min_instance_count               = 1
-    available_memory                 = "4Gi"
+    available_memory                 = "2Gi"
     timeout_seconds                  = 60
-    available_cpu                    = "4"
+    available_cpu                    = "2"
     max_instance_request_concurrency = 20
     environment_variables = {
       REGION  = var.deployment_region

@@ -46,10 +46,9 @@ def has_valid_signature(request):
 def gemini_generate(contents, parameters=None, model_name="gemini-1.5-flash", response_schema=None):
    # Define default parameters
     default_parameters = {
-        "temperature": 0.2,
-        "max_output_tokens": 500,
-        "top_p": 0.8,
-        "top_k": 40
+        "temperature": 1,
+        "max_output_tokens": 8192,
+        "top_p": 0.95,
     }
 
     # Override default parameters with any provided in the request
@@ -65,7 +64,6 @@ def gemini_generate(contents, parameters=None, model_name="gemini-1.5-flash", re
         generation_config=GenerationConfig(
             temperature=default_parameters["temperature"],
             top_p=default_parameters["top_p"],
-            top_k=default_parameters["top_k"],
             max_output_tokens=default_parameters["max_output_tokens"],
             candidate_count=1,
             response_schema=response_schema,
