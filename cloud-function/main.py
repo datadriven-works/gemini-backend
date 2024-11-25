@@ -44,8 +44,6 @@ def has_valid_signature(request):
 
 
 def gemini_generate(contents, parameters=None, model_name="gemini-1.5-flash", response_schema=None):
-    print(f"Using model: {model_name}")
-    print(f"Using response schema: {response_schema}")
    # Define default parameters
     default_parameters = {
         "temperature": 0.2,
@@ -100,8 +98,14 @@ def create_flask_app():
         if request.method == "OPTIONS":
             return handle_options_request(request)
 
+        return "Welcome to the Explore Assistant API!", 200, get_response_headers(request)
+
+    @app.route("/generate_content", methods=["POST", "OPTIONS"])
+    def generate_content():
+        if request.method == "OPTIONS":
+            return handle_options_request(request)
+
         incoming_request = request.get_json()
-        print(incoming_request)
         contents = incoming_request.get("contents")
         parameters = incoming_request.get("parameters")
         model_name = incoming_request.get("model_name", "gemini-1.5-flash")
@@ -126,16 +130,26 @@ def cloud_function_entrypoint(request):
     if request.method == "OPTIONS":
         return handle_options_request(request)
 
-    incoming_request = request.get_json()
-    contents = incoming_request.get("contents")
-    parameters = incoming_request.get("parameters")
-    if contents is None:
-        return "Missing 'contents' parameter", 400
+    # Handle the `/generate_content` path
+    if request.path == "/generate_content":
+        incoming_request = request.get_json()
+        contents = incoming_request.get("contents")
+        parameters = incoming_request.get("parameters")
+        model_name = incoming_request.get("model_name", "gemini-1.5-flash")
+        response_schema = incoming_request.get("response_schema", None)
 
-    response_text = generate_looker_query(contents, parameters)
+        if contents is None:
+            return "Missing 'contents' parameter", 400
 
-    return response_text, 200, get_response_headers(request)
+        if not has_valid_signature(request):
+            return "Invalid signature", 403
 
+        response_text = gemini_generate(contents, parameters, model_name, response_schema)
+
+        return response_text, 200, get_response_headers(request)
+
+    # Default response for unsupported paths
+    return "Unsupported path", 404, get_response_headers(request)
 
 def handle_options_request(request):
     return "", 204, get_response_headers(request)

@@ -12,6 +12,8 @@ class LiveBackendTests(unittest.TestCase):
     def setUpClass(cls):
         # Backend URL
         cls.backend_url = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000")
+        # Full path for the /generate_content endpoint
+        cls.generate_content_url = f"{cls.backend_url}/generate_content"
         # Load the secret key from the file
         with open('../.vertex_cf_auth_token', 'r') as file:
             cls.secret_key = file.read().strip()  # Remove any potential newline characters
@@ -43,8 +45,8 @@ class LiveBackendTests(unittest.TestCase):
         # Generate HMAC signature
         signature = self.generate_hmac_signature(self.secret_key, data)
 
-        # Send the request
-        response = self.send_request(self.backend_url, data, signature)
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
         self.assertEqual(response.status_code, 200)
@@ -59,8 +61,8 @@ class LiveBackendTests(unittest.TestCase):
         # Generate HMAC signature
         signature = self.generate_hmac_signature(self.secret_key, data)
 
-        # Send the request
-        response = self.send_request(self.backend_url, data, signature)
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
         self.assertEqual(response.status_code, 200)
@@ -76,8 +78,8 @@ class LiveBackendTests(unittest.TestCase):
         # Generate HMAC signature
         signature = self.generate_hmac_signature(self.secret_key, data)
 
-        # Send the request
-        response = self.send_request(self.backend_url, data, signature)
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
         self.assertEqual(response.status_code, 200)
@@ -92,8 +94,8 @@ class LiveBackendTests(unittest.TestCase):
         # Use an invalid HMAC signature
         invalid_signature = "invalid_signature"
 
-        # Send the request
-        response = self.send_request(self.backend_url, data, invalid_signature)
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, invalid_signature)
 
         # Assert response
         self.assertEqual(response.status_code, 403)
@@ -129,8 +131,8 @@ class LiveBackendTests(unittest.TestCase):
         # Generate HMAC signature
         signature = self.generate_hmac_signature(self.secret_key, data)
 
-        # Send the request
-        response = self.send_request(self.backend_url, data, signature)
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
         self.assertEqual(response.status_code, 200)
@@ -146,7 +148,6 @@ class LiveBackendTests(unittest.TestCase):
             self.assertIsInstance(recipe["ingredients"], list)
             for ingredient in recipe["ingredients"]:
                 self.assertIsInstance(ingredient, str)  # Each ingredient should be a string
-
 
 
 if __name__ == "__main__":
