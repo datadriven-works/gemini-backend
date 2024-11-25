@@ -15,7 +15,7 @@ class LiveBackendTests(unittest.TestCase):
         # Load the secret key from the file
         with open('../.vertex_cf_auth_token', 'r') as file:
             cls.secret_key = file.read().strip()  # Remove any potential newline characters
-    
+
     def generate_hmac_signature(self, secret_key, data):
         """
         Generate HMAC-SHA256 signature for the given data using the secret key.
@@ -42,7 +42,7 @@ class LiveBackendTests(unittest.TestCase):
         }
         # Generate HMAC signature
         signature = self.generate_hmac_signature(self.secret_key, data)
-        
+
         # Send the request
         response = self.send_request(self.backend_url, data, signature)
 
@@ -98,6 +98,55 @@ class LiveBackendTests(unittest.TestCase):
         # Assert response
         self.assertEqual(response.status_code, 403)
         self.assertIn("Invalid signature", response.text)
+
+    def test_generate_query_with_response_schema(self):
+        # Define payload with a response schema
+        data = {
+            "contents": "make me a list of recipes",
+            "parameters": {"max_output_tokens": 500, "temperature": 0.3},
+            "response_schema": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "recipe_name": {
+                            "type": "string",
+                            "description": "The name of the recipe."
+                        },
+                        "ingredients": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "A list of ingredients used in the recipe."
+                        }
+                    },
+                    "required": ["recipe_name", "ingredients"]
+                }
+            }
+        }
+        
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+
+        # Send the request
+        response = self.send_request(self.backend_url, data, signature)
+
+        # Assert response
+        self.assertEqual(response.status_code, 200)
+
+        # Validate response JSON
+        response_json = response.json()
+        self.assertIsInstance(response_json, list)  # Ensure the response is a list
+        for recipe in response_json:
+            self.assertIsInstance(recipe, dict)  # Each item should be a dictionary
+            self.assertIn("recipe_name", recipe)
+            self.assertIn("ingredients", recipe)
+            self.assertIsInstance(recipe["recipe_name"], str)
+            self.assertIsInstance(recipe["ingredients"], list)
+            for ingredient in recipe["ingredients"]:
+                self.assertIsInstance(ingredient, str)  # Each ingredient should be a string
+
 
 
 if __name__ == "__main__":

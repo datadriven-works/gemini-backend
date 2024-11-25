@@ -1,3 +1,4 @@
+import json
 import os
 import hmac
 from flask import Flask, request, Response
@@ -17,6 +18,7 @@ vertex_cf_auth_token = os.environ.get("VERTEX_CF_AUTH_TOKEN")
 model_name = os.environ.get("MODEL_NAME", "gemini-1.5-flash")
 
 vertexai.init(project=project, location=location)
+
 
 def get_response_headers(request):
     headers = {
@@ -40,8 +42,10 @@ def has_valid_signature(request):
 
     return hmac.compare_digest(signature, expected_signature)
 
-def generate_looker_query(contents, parameters=None, model_name="gemini-1.5-flash"):
+
+def gemini_generate(contents, parameters=None, model_name="gemini-1.5-flash", response_schema=None):
     print(f"Using model: {model_name}")
+    print(f"Using response schema: {response_schema}")
    # Define default parameters
     default_parameters = {
         "temperature": 0.2,
@@ -65,7 +69,9 @@ def generate_looker_query(contents, parameters=None, model_name="gemini-1.5-flas
             top_p=default_parameters["top_p"],
             top_k=default_parameters["top_k"],
             max_output_tokens=default_parameters["max_output_tokens"],
-            candidate_count=1
+            candidate_count=1,
+            response_schema=response_schema,
+            response_mime_type=response_schema and "application/json" or 'text/plain'
         )
     )
 
@@ -99,13 +105,15 @@ def create_flask_app():
         contents = incoming_request.get("contents")
         parameters = incoming_request.get("parameters")
         model_name = incoming_request.get("model_name", "gemini-1.5-flash")
+        response_schema = incoming_request.get("response_schema", None)
+
         if contents is None:
             return "Missing 'contents' parameter", 400
 
         if not has_valid_signature(request):
             return "Invalid signature", 403
 
-        response_text = generate_looker_query(contents, parameters, model_name)
+        response_text = gemini_generate(contents, parameters, model_name, response_schema)
 
         return response_text, 200, get_response_headers(request)
 
