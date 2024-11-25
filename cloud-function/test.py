@@ -1,45 +1,104 @@
+import unittest
 import hmac
 import hashlib
-import requests
 import json
-import argparse  # Import the argparse module
+import requests
+import os
 
-def generate_hmac_signature(secret_key, data):
-    """
-    Generate HMAC-SHA256 signature for the given data using the secret key.
-    """
-    hmac_obj = hmac.new(secret_key.encode(), json.dumps(data).encode(), hashlib.sha256)
-    return hmac_obj.hexdigest()
 
-def send_request(url, data, signature):
-    """
-    Send a POST request to the given URL with the provided data and HMAC signature.
-    """
-    headers = {
-        'Content-Type': 'application/json',
-        'X-Signature': signature
-    }
-    response = requests.post(url, headers=headers, json=data)
-    return response.text
+class LiveBackendTests(unittest.TestCase):
 
-def main(url):
-    # Request payload
-    data = {"contents": "how are you doing?", "parameters": {"max_output_tokens": 1000}}
+    @classmethod
+    def setUpClass(cls):
+        # Backend URL
+        cls.backend_url = os.environ.get("BACKEND_URL", "http://127.0.0.1:8000")
+        # Load the secret key from the file
+        with open('../.vertex_cf_auth_token', 'r') as file:
+            cls.secret_key = file.read().strip()  # Remove any potential newline characters
+    
+    def generate_hmac_signature(self, secret_key, data):
+        """
+        Generate HMAC-SHA256 signature for the given data using the secret key.
+        """
+        hmac_obj = hmac.new(secret_key.encode(), json.dumps(data).encode(), hashlib.sha256)
+        return hmac_obj.hexdigest()
 
-    # Read the secret key from a file
-    with open('../.vertex_cf_auth_token', 'r') as file:
-        secret_key = file.read().strip()  # Remove any potential newline characters
+    def send_request(self, url, data, signature):
+        """
+        Send a POST request to the backend with the provided data and HMAC signature.
+        """
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Signature': signature
+        }
+        response = requests.post(url, headers=headers, json=data)
+        return response
 
-    # Generate HMAC signature
-    signature = generate_hmac_signature(secret_key, data)
+    def test_generate_query_default_parameters(self):
+        # Define payload with default parameters
+        data = {
+            "contents": "how are you doing?",
+            "parameters": {"max_output_tokens": 1000}
+        }
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+        
+        # Send the request
+        response = self.send_request(self.backend_url, data, signature)
 
-    # Send the request
-    response = send_request(url, data, signature)
-    print("Response from server:", response)
+        # Assert response
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("how", response.text.lower())
+
+    def test_generate_query_custom_parameters(self):
+        # Define payload with custom parameters
+        data = {
+            "contents": "generate a SQL query for sales data",
+            "parameters": {"max_output_tokens": 500, "temperature": 0.3}
+        }
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+
+        # Send the request
+        response = self.send_request(self.backend_url, data, signature)
+
+        # Assert response
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("select", response.text.lower())
+
+    def test_generate_query_with_model_name(self):
+        # Define payload with a model name
+        data = {
+            "contents": "write an exploratory query",
+            "parameters": {"max_output_tokens": 200},
+            "model_name": "gemini-1.5-pro"
+        }
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+
+        # Send the request
+        response = self.send_request(self.backend_url, data, signature)
+
+        # Assert response
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("query", response.text.lower())
+
+    def test_invalid_signature(self):
+        # Define payload
+        data = {
+            "contents": "how are you doing?",
+            "parameters": {"max_output_tokens": 1000}
+        }
+        # Use an invalid HMAC signature
+        invalid_signature = "invalid_signature"
+
+        # Send the request
+        response = self.send_request(self.backend_url, data, invalid_signature)
+
+        # Assert response
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Invalid signature", response.text)
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Send a secured request to a server.")
-    parser.add_argument('--backend-url', type=str, default='http://127.0.0.1:8000',
-                        help='URL to send the request to (default: http://127.0.0.1:8000)')
-    args = parser.parse_args()
-    main(args.backend_url)
+    unittest.main()

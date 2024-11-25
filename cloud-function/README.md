@@ -35,26 +35,39 @@ To set up and run the function locally, follow these steps:
     source .venv/bin/activate
     ```
 
-2. Navigate to the project directory and install the required dependencies:
+2. Create the vertex auth token
+   ```
+   openssl rand -base64 32 > .vertex_cf_auth_token
+   ```
+
+3. Navigate to the project directory and install the required dependencies:
 
     ```bash
     cd cloud-function
     pip3 install -r requirements.txt
     ```
 
-3. Run the function locally by executing the main script:
+4. Run the function locally by executing the main script:
 
     ```bash
     PROJECT=XXXX LOCATION=us-central-1 VERTEX_CF_AUTH_TOKEN=$(cat ../.vertex_cf_auth_token) python main.py
     ```
 
-4. Test calling the endpoint locally with a custom query and parameter declaration
+5. Test calling the endpoint locally with a custom query and parameter declaration
    
    ```bash
      python test.py
    ```
 
 This setup allows developers to test and modify the function in a local environment before deploying it to a cloud function service.
+
+Make sure that gsutil is setup so that you can connect to a gemini backend:
+
+```
+gcloud auth login
+gcloud config set project dev-laraqui-gemini-11-25
+
+```
 
 ## Model configuration
 

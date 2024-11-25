@@ -1,26 +1,3 @@
-
-# MIT License
-
-# Copyright (c) 2023 Looker Data Sciences, Inc.
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 import os
 import hmac
 from flask import Flask, request, Response
@@ -37,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 project = os.environ.get("PROJECT")
 location = os.environ.get("REGION")
 vertex_cf_auth_token = os.environ.get("VERTEX_CF_AUTH_TOKEN")
-model_name = os.environ.get("MODEL_NAME", "gemini-1.0-pro-001")
+model_name = os.environ.get("MODEL_NAME", "gemini-1.5-flash")
 
 vertexai.init(project=project, location=location)
 
@@ -64,7 +41,7 @@ def has_valid_signature(request):
     return hmac.compare_digest(signature, expected_signature)
 
 def generate_looker_query(contents, parameters=None, model_name="gemini-1.5-flash"):
-
+    print(f"Using model: {model_name}")
    # Define default parameters
     default_parameters = {
         "temperature": 0.2,
@@ -121,13 +98,14 @@ def create_flask_app():
         print(incoming_request)
         contents = incoming_request.get("contents")
         parameters = incoming_request.get("parameters")
+        model_name = incoming_request.get("model_name", "gemini-1.5-flash")
         if contents is None:
             return "Missing 'contents' parameter", 400
 
         if not has_valid_signature(request):
             return "Invalid signature", 403
 
-        response_text = generate_looker_query(contents, parameters)
+        response_text = generate_looker_query(contents, parameters, model_name)
 
         return response_text, 200, get_response_headers(request)
 

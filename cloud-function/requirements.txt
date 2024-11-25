@@ -1,4 +1,4 @@
 functions-framework==3.*
-google-cloud-aiplatform>=1.50
+google-cloud-aiplatform>=1.73.0
 Flask
 Flask-Cors
