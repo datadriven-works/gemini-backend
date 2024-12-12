@@ -42,48 +42,51 @@ def has_valid_signature(request):
 
     return hmac.compare_digest(signature, expected_signature)
 
-
 def gemini_generate(contents, parameters=None, model_name="gemini-1.5-flash", response_schema=None):
-   # Define default parameters
-    default_parameters = {
-        "temperature": 1,
-        "max_output_tokens": 8192,
-        "top_p": 0.95,
-    }
+    try:
+        # Define default parameters
+        default_parameters = {
+            "temperature": 1,
+            "max_output_tokens": 8192,
+            "top_p": 0.95,
+        }
 
-    # Override default parameters with any provided in the request
-    if parameters:
-        default_parameters.update(parameters)
+        # Override default parameters with any provided in the request
+        if parameters:
+            default_parameters.update(parameters)
 
-    # instantiate gemini model for prediction
-    model = GenerativeModel(model_name)
+        # Instantiate Gemini model for prediction
+        model = GenerativeModel(model_name)
 
-    # make prediction to generate Looker Explore URL
-    response = model.generate_content(
-        contents=contents,
-        generation_config=GenerationConfig(
-            temperature=default_parameters["temperature"],
-            top_p=default_parameters["top_p"],
-            max_output_tokens=default_parameters["max_output_tokens"],
-            candidate_count=1,
-            response_schema=response_schema,
-            response_mime_type=response_schema and "application/json" or 'text/plain'
+        # Make prediction to generate Looker Explore URL
+        response = model.generate_content(
+            contents=contents,
+            generation_config=GenerationConfig(
+                temperature=default_parameters["temperature"],
+                top_p=default_parameters["top_p"],
+                max_output_tokens=default_parameters["max_output_tokens"],
+                candidate_count=1,
+                response_schema=response_schema,
+                response_mime_type=response_schema and "application/json" or 'text/plain'
+            )
         )
-    )
 
-    # grab token character count metadata and log
-    metadata = response.__dict__['_raw_response'].usage_metadata
+        # Grab token character count metadata and log
+        metadata = response.__dict__['_raw_response'].usage_metadata
 
-    # Complete a structured log entry.
-    entry = dict(
-        severity="INFO",
-        message={"request": contents, "response": response.text,
-                 "input_characters": metadata.prompt_token_count, "output_characters": metadata.candidates_token_count},
-        # Log viewer accesses 'component' as jsonPayload.component'.
-        component="explore-assistant-metadata",
-    )
-    logging.info(entry)
-    return response.text
+        # Complete a structured log entry
+        entry = dict(
+            severity="INFO",
+            message={"request": contents, "response": response.text,
+                     "input_characters": metadata.prompt_token_count, "output_characters": metadata.candidates_token_count},
+            component="explore-assistant-metadata",
+        )
+        logging.info(entry)
+        return response.text
+    except Exception as e:
+        # Log the exception
+        logging.error(f"Error in gemini_generate: {str(e)}", exc_info=True)
+        raise RuntimeError(f"Gemini model error: {str(e)}") from e
 
 
 # Flask app for running as a web server
@@ -91,35 +94,62 @@ def create_flask_app():
     app = Flask(__name__)
     CORS(app)
 
-    @app.route("/", methods=["POST", "OPTIONS"])
-    def base():
-        if request.method == "OPTIONS":
-            return handle_options_request(request)
-
-        return "Welcome to the Explore Assistant API!", 200, get_response_headers(request)
-
     @app.route("/generate_content", methods=["POST", "OPTIONS"])
     def generate_content():
         if request.method == "OPTIONS":
             return handle_options_request(request)
 
-        incoming_request = request.get_json()
-        contents = incoming_request.get("contents")
-        parameters = incoming_request.get("parameters")
-        model_name = incoming_request.get("model_name", "gemini-1.5-flash")
-        response_schema = incoming_request.get("response_schema", None)
+        try:
+            incoming_request = request.get_json()
+            contents = incoming_request.get("contents")
+            parameters = incoming_request.get("parameters")
+            model_name = incoming_request.get("model_name", "gemini-1.5-flash")
+            response_schema = incoming_request.get("response_schema", None)
 
-        if contents is None:
-            return "Missing 'contents' parameter", 400
+            if contents is None:
+                return {"error": "Missing 'contents' parameter"}, 400
 
-        if not has_valid_signature(request):
-            return "Invalid signature", 403
+            if not has_valid_signature(request):
+                return {"error": "Invalid signature"}, 403
 
-        response_text = gemini_generate(contents, parameters, model_name, response_schema)
-
-        return response_text, 200, get_response_headers(request)
+            response_text = gemini_generate(contents, parameters, model_name, response_schema)
+            return response_text, 200, get_response_headers(request)
+        except Exception as e:
+            logging.error(f"Error in generate_content route: {str(e)}", exc_info=True)
+            return {"error": str(e)}, 500, get_response_headers(request)
 
     return app
+
+
+# Function for Google Cloud Function
+@functions_framework.http
+def cloud_function_entrypoint(request):
+    if request.method == "OPTIONS":
+        return handle_options_request(request)
+
+    try:
+        # Handle the `/generate_content` path
+        if request.path == "/generate_content":
+            incoming_request = request.get_json()
+            contents = incoming_request.get("contents")
+            parameters = incoming_request.get("parameters")
+            model_name = incoming_request.get("model_name", "gemini-1.5-flash")
+            response_schema = incoming_request.get("response_schema", None)
+
+            if contents is None:
+                return {"error": "Missing 'contents' parameter"}, 400
+
+            if not has_valid_signature(request):
+                return {"error": "Invalid signature"}, 403
+
+            response_text = gemini_generate(contents, parameters, model_name, response_schema)
+            return response_text, 200, get_response_headers(request)
+
+        # Default response for unsupported paths
+        return {"error": "Unsupported path"}, 404, get_response_headers(request)
+    except Exception as e:
+        logging.error(f"Error in cloud_function_entrypoint: {str(e)}", exc_info=True)
+        return {"error": str(e)}, 500, get_response_headers(request)
 
 
 # Function for Google Cloud Function

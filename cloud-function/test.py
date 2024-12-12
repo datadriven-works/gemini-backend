@@ -149,6 +149,24 @@ class LiveBackendTests(unittest.TestCase):
             for ingredient in recipe["ingredients"]:
                 self.assertIsInstance(ingredient, str)  # Each ingredient should be a string
 
+    def test_exception_handling(self):
+        # Define payload that will likely cause an error (e.g., invalid parameter type)
+        data = {
+            "contents": "this should trigger an exception",
+            "parameters": {"max_output_tokens": "invalid_type"}  # Invalid type for max_output_tokens
+        }
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
+
+        # Assert response
+        self.assertEqual(response.status_code, 500)  # Ensure it's an internal server error
+        self.assertIn("error", response.json())  # Check that the response contains an "error" key
+        self.assertIsInstance(response.json()["error"], str)  # Ensure the error message is a string
+        self.assertIn("gemini model error", response.json()["error"].lower())  # Validate the content of the error message
+
 
 if __name__ == "__main__":
     unittest.main()
