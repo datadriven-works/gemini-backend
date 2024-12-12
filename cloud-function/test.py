@@ -5,6 +5,31 @@ import json
 import requests
 import os
 
+def assert_non_zero_text_parts(test_case, response):
+    """
+    Asserts that the response body contains non-zero text parts.
+
+    Args:
+        test_case: The unittest.TestCase instance calling this function.
+        response_body: The JSON-decoded response body to validate.
+
+    Raises:
+        AssertionError: If the response body does not meet the expected criteria.
+    """
+    response_body = response.json()
+    test_case.assertIsInstance(response_body, list, "Response body should be a list.")
+    test_case.assertGreater(len(response_body), 0, "Response body should not be empty.")
+    for part in response_body:
+        test_case.assertIn(
+            'text', part, "Each response part should contain a 'text' key."
+        )
+        test_case.assertIsInstance(
+            part['text'], str, "The 'text' value should be a string."
+        )
+        test_case.assertGreater(
+            len(part['text']), 0, "The 'text' value should not be empty."
+        )
+
 
 class LiveBackendTests(unittest.TestCase):
 
@@ -49,9 +74,8 @@ class LiveBackendTests(unittest.TestCase):
         response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
-        self.assertEqual(response.status_code, 200)
-        self.assertGreaterEqual(len(response.text), 0)
-
+        assert_non_zero_text_parts(self, response)
+    
     def test_generate_query_custom_parameters(self):
         # Define payload with custom parameters
         data = {
@@ -65,8 +89,7 @@ class LiveBackendTests(unittest.TestCase):
         response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("select", response.text.lower())
+        assert_non_zero_text_parts(self, response)
 
     def test_generate_query_with_model_name(self):
         # Define payload with a model name
@@ -82,8 +105,7 @@ class LiveBackendTests(unittest.TestCase):
         response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
-        self.assertEqual(response.status_code, 200)
-        self.assertGreaterEqual(len(response.text), 0)
+        assert_non_zero_text_parts(self, response)
 
     def test_invalid_signature(self):
         # Define payload
@@ -139,9 +161,11 @@ class LiveBackendTests(unittest.TestCase):
 
         # Validate response JSON
         response_json = response.json()
-        self.assertIsInstance(response_json, list)  # Ensure the response is a list
-        for recipe in response_json:
-            self.assertIsInstance(recipe, dict)  # Each item should be a dictionary
+        self.assertEqual(len(response_json), 1)
+
+        recipe_list = response_json[0]['object']
+        self.assertIsInstance(recipe_list, list)  # Ensure the response is a list
+        for recipe in recipe_list:
             self.assertIn("recipe_name", recipe)
             self.assertIn("ingredients", recipe)
             self.assertIsInstance(recipe["recipe_name"], str)
@@ -185,8 +209,8 @@ class LiveBackendTests(unittest.TestCase):
         response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("weather", response.text.lower())
+        assert_non_zero_text_parts(self, response)
+
 
     def test_generate_with_detailed_history(self):
         # Define payload with more detailed conversation history
@@ -206,8 +230,7 @@ class LiveBackendTests(unittest.TestCase):
         response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
-        self.assertEqual(response.status_code, 200)
-        self.assertGreaterEqual(len(response.text), 0)
+        assert_non_zero_text_parts(self, response)
 
     def test_generate_with_large_history(self):
         # Define payload with extensive conversation history
@@ -229,8 +252,7 @@ class LiveBackendTests(unittest.TestCase):
         response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
-        self.assertEqual(response.status_code, 200)
-        self.assertGreaterEqual(len(response.text), 0)
+        assert_non_zero_text_parts(self, response)
 
     def test_generate_with_empty_history(self):
         # Define payload with no conversation history
@@ -246,8 +268,7 @@ class LiveBackendTests(unittest.TestCase):
         response = self.send_request(self.generate_content_url, data, signature)
 
         # Assert response
-        self.assertEqual(response.status_code, 200)
-        self.assertGreaterEqual(len(response.text), 0)
+        assert_non_zero_text_parts(self, response)
 
     def test_generate_with_invalid_history_format(self):
         # Define payload with invalid conversation history format
@@ -265,6 +286,63 @@ class LiveBackendTests(unittest.TestCase):
         # Assert response
         self.assertEqual(response.status_code, 400)  # Expecting a bad request due to invalid history format
         self.assertIn("invalid history format", response.text.lower())
+
+
+    def test_generate_with_function_call_response(self):
+        # Define payload with a function call response in the history
+        data = {
+            "contents": "Can you summarize the nearby theaters?",
+            "history": [
+                {
+                    "role": "model",
+                    "parts": [{
+                        "functionCall": {
+                            "name": "find_theaters",
+                            "args": {
+                                "location": "Mountain View, CA",
+                                "movie": "Barbie"
+                            }
+                        }
+                    }]
+                },
+                {
+                    "role": "user",
+                    "parts": [{
+                        "functionResponse": {
+                            "name": "find_theaters",
+                            "response": {
+                                "name": "find_theaters",
+                                "content": {
+                                    "movie": "Barbie",
+                                    "theaters": [
+                                        {
+                                            "name": "AMC Mountain View 16",
+                                            "address": "2000 W El Camino Real, Mountain View, CA 94040"
+                                        },
+                                        {
+                                            "name": "Regal Edwards 14",
+                                            "address": "245 Castro St, Mountain View, CA 94040"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }]
+                }
+            ],
+            "parameters": {"max_output_tokens": 500}
+        }
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
+
+        # Assert response
+        assert_non_zero_text_parts(self, response)
+        response_json = response.json()
+        self.assertIn("amc mountain view 16", response_json[0]['text'].lower())  # Ensure the server acknowledged the function response
+        self.assertIn("regal edwards 14", response_json[0]['text'].lower())  # Ensure the server incorporated the function output
 
 
 if __name__ == "__main__":

@@ -79,8 +79,33 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
 
         # Instantiate Gemini model for prediction
         client = genai.Client(vertexai=True, project=project, location=location)
-
-        typed_history = [types.Content(parts=[types.Part(text=y) for y in x['parts']], role=x['role']) for x in history]
+        typed_history = []
+        for x in history:
+            role = x["role"]
+            parts = []
+            for part in x["parts"]:
+                if isinstance(part, dict):  # Handle structured parts (function calls or function responses)
+                    if "functionCall" in part:
+                        parts.append(
+                            types.Part(
+                                function_call=types.FunctionCall(
+                                    name=part["functionCall"]["name"],
+                                    args=part["functionCall"]["args"]
+                                )
+                            )
+                        )
+                    elif "functionResponse" in part:
+                        parts.append(
+                            types.Part(
+                                function_response=types.FunctionResponse(
+                                    name=part["functionResponse"]["name"],
+                                    response=part["functionResponse"]["response"]
+                                )
+                            )
+                        )
+                else:  # Handle plain text parts
+                    parts.append(types.Part(text=part))
+            typed_history.append(types.Content(parts=parts, role=role))
 
         chat = client.chats.create(model=model_name, history=typed_history, config={
             "temperature": default_parameters["temperature"],
@@ -91,11 +116,21 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
             "response_mime_type": response_schema and "application/json" or 'text/plain'
         })
 
-        # Make prediction to generate Looker Explore URL
+        # add message to chat
         response = chat.send_message(contents)
 
-        # Grab token character count metadata and log
-        return response.text
+        # return the function call or the text response
+        condidate = response.candidates[0]
+        response_parts = []
+        for part in condidate.content.parts:
+            if part.function_call:
+                response_parts.append({"functionCall": part.function_call})
+            elif response_schema:
+                response_parts.append({"object": json.loads(part.text)})
+            else:
+                response_parts.append({"text": part.text})
+
+        return response_parts
     except Exception as e:
         # Log the exception
         logging.error(f"Error in gemini_generate: {str(e)}", exc_info=True)
