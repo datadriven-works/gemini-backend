@@ -73,7 +73,6 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
             "top_p": 0.95,
         }
 
-        print(history)
         # Override default parameters with any provided in the request
         if parameters:
             default_parameters.update(parameters)
@@ -82,7 +81,7 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
         client = genai.Client(vertexai=True, project=project, location=location)
 
         typed_history = [types.Content(parts=[types.Part(text=y) for y in x['parts']], role=x['role']) for x in history]
-        print(typed_history)
+
         chat = client.chats.create(model=model_name, history=typed_history, config={
             "temperature": default_parameters["temperature"],
             "top_p": default_parameters["top_p"],
@@ -92,11 +91,9 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
             "response_mime_type": response_schema and "application/json" or 'text/plain'
         })
 
-        print(chat)
-
         # Make prediction to generate Looker Explore URL
         response = chat.send_message(contents)
-        print(response)
+
         # Grab token character count metadata and log
         return response.text
     except Exception as e:
