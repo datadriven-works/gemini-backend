@@ -79,14 +79,14 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
 
         # Instantiate Gemini model for prediction
         client = genai.Client(vertexai=True, project=project, location=location)
-        typed_history = []
+        content_list = []
         for x in history:
             role = x["role"]
-            parts = []
+            one_content_list = []
             for part in x["parts"]:
                 if isinstance(part, dict):  # Handle structured parts (function calls or function responses)
                     if "functionCall" in part:
-                        parts.append(
+                        one_content_list.append(
                             types.Part(
                                 function_call=types.FunctionCall(
                                     name=part["functionCall"]["name"],
@@ -95,7 +95,7 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
                             )
                         )
                     elif "functionResponse" in part:
-                        parts.append(
+                        one_content_list.append(
                             types.Part(
                                 function_response=types.FunctionResponse(
                                     name=part["functionResponse"]["name"],
@@ -104,8 +104,11 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
                             )
                         )
                 else:  # Handle plain text parts
-                    parts.append(types.Part(text=part))
-            typed_history.append(types.Content(parts=parts, role=role))
+                    one_content_list.append(types.Part(text=part))
+            content_list.append(types.Content(parts=one_content_list, role=role))
+
+        if contents:
+            content_list.append(types.Content(parts=[types.Part(text=contents)], role="user"))
 
         config = {
             "temperature": default_parameters["temperature"],
@@ -136,10 +139,11 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
                 )
             )
 
-        chat = client.chats.create(model=model_name, history=typed_history, config=config)
-
-        # add message to chat
-        response = chat.send_message(contents)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=content_list,
+            config=config
+        )
 
         # return the function call or the text response
         condidate = response.candidates[0]
@@ -185,8 +189,8 @@ def create_flask_app():
             if is_invalid_history(history):
                 return {"error": "Invalid history format"}, 400
 
-            if contents is None:
-                return {"error": "Missing 'contents' parameter"}, 400
+            if contents is None and len(history) == 0:
+                return {"error": "Missing 'contents' or history must be provided"}, 400
 
             if not has_valid_signature(request):
                 return {"error": "Invalid signature"}, 403
@@ -220,8 +224,8 @@ def cloud_function_entrypoint(request):
             if is_invalid_history(history):
                 return {"error": "Invalid history format"}, 400
 
-            if contents is None:
-                return {"error": "Missing 'contents' parameter"}, 400
+            if contents is None and len(history) == 0:
+                return {"error": "Missing 'contents' or history must be provided"}, 400
 
             if not has_valid_signature(request):
                 return {"error": "Invalid signature"}, 403
