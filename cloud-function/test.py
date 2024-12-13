@@ -77,6 +77,63 @@ class LiveBackendTests(unittest.TestCase):
         # Assert response
         assert_non_zero_text_parts(self, response)
 
+    def test_generate_no_contents_but_history_provided(self):
+        # Define payload with default parameters
+        data = {
+            "history": [{"role": "user", "parts": ["how are you doing?"]}]
+        }
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
+
+        # Assert response
+        assert_non_zero_text_parts(self, response)
+
+    def test_generate_query_with_tools_defined(self):
+        # Define payload with default parameters
+        data = {
+            "contents": "how are you doing?",
+            "tools": [
+                {
+                    "name": "find_theaters",
+                    "description": "Find movie titles currently playing in theaters based on any description, genre, title words, etc.",
+                    "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "location": {"type": "STRING", "description": "The city and state, e.g. San Francisco, CA or a zip code e.g. 95616"}
+                        }
+                    }
+                }
+            ]
+        }
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
+
+        # Assert response
+        assert_non_zero_text_parts(self, response)
+
+    def test_generate_query_with_system_instruction(self):
+        # Define payload with system instruction
+        data = {
+            "contents": "what's your name?",
+            "system_instruction": "You are a helpful assistant named Bob."
+        }
+
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
+
+        # Assert response
+        assert_non_zero_text_parts(self, response)
+        self.assertIn("Bob", response.json()[0]['text'])
+
     def test_generate_query_custom_parameters(self):
         # Define payload with custom parameters
         data = {

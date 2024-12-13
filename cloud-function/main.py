@@ -123,8 +123,7 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
         if tools and type(tools) == list and len(tools) > 0:
             config.tool_config = types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(
-                    mode='ANY',
-                    allowed_function_names= [tool['name'] for tool in tools]
+                    mode='AUTO',
                 )
             )
             config.tools = []
