@@ -5,6 +5,7 @@ import json
 import requests
 import os
 
+
 def assert_non_zero_text_parts(test_case, response):
     """
     Asserts that the response body contains non-zero text parts.
@@ -75,7 +76,7 @@ class LiveBackendTests(unittest.TestCase):
 
         # Assert response
         assert_non_zero_text_parts(self, response)
-    
+
     def test_generate_query_custom_parameters(self):
         # Define payload with custom parameters
         data = {
@@ -149,7 +150,7 @@ class LiveBackendTests(unittest.TestCase):
                 }
             }
         }
-        
+
         # Generate HMAC signature
         signature = self.generate_hmac_signature(self.secret_key, data)
 
@@ -189,8 +190,8 @@ class LiveBackendTests(unittest.TestCase):
         self.assertEqual(response.status_code, 500)  # Ensure it's an internal server error
         self.assertIn("error", response.json())  # Check that the response contains an "error" key
         self.assertIsInstance(response.json()["error"], str)  # Ensure the error message is a string
-        self.assertIn("gemini model error", response.json()["error"].lower())  # Validate the content of the error message
-
+        # Validate the content of the error message
+        self.assertIn("gemini model error", response.json()["error"].lower())
 
     def test_generate_with_simple_history(self):
         # Define payload with simple conversation history
@@ -210,7 +211,6 @@ class LiveBackendTests(unittest.TestCase):
 
         # Assert response
         assert_non_zero_text_parts(self, response)
-
 
     def test_generate_with_detailed_history(self):
         # Define payload with more detailed conversation history
@@ -238,7 +238,8 @@ class LiveBackendTests(unittest.TestCase):
             "contents": "Summarize our conversation so far.",
             "history": [
                 {"role": "user", "parts": ["Tell me a joke."]},
-                {"role": "model", "parts": ["Why did the scarecrow win an award? Because he was outstanding in his field!"]},
+                {"role": "model", "parts": [
+                    "Why did the scarecrow win an award? Because he was outstanding in his field!"]},
                 {"role": "user", "parts": ["Haha, that's great! Got another one?"]},
                 {"role": "model", "parts": ["Why don’t skeletons fight each other? They don’t have the guts."]},
                 {"role": "user", "parts": ["Thanks, that's enough for now."]}
@@ -286,7 +287,6 @@ class LiveBackendTests(unittest.TestCase):
         # Assert response
         self.assertEqual(response.status_code, 400)  # Expecting a bad request due to invalid history format
         self.assertIn("invalid history format", response.text.lower())
-
 
     def test_generate_with_function_call_response(self):
         # Define payload with a function call response in the history
@@ -341,8 +341,62 @@ class LiveBackendTests(unittest.TestCase):
         # Assert response
         assert_non_zero_text_parts(self, response)
         response_json = response.json()
-        self.assertIn("amc mountain view 16", response_json[0]['text'].lower())  # Ensure the server acknowledged the function response
-        self.assertIn("regal edwards 14", response_json[0]['text'].lower())  # Ensure the server incorporated the function output
+        # Ensure the server acknowledged the function response
+        self.assertIn("amc mountain view 16", response_json[0]['text'].lower())
+        # Ensure the server incorporated the function output
+        self.assertIn("regal edwards 14", response_json[0]['text'].lower())
+
+    def test_generate_with_find_movies_function_call(self):
+        # Define payload designed to produce a functionCall for 'find_movies'
+        data = {
+            "contents": "Find action movies currently playing in theaters in San Francisco, CA.",
+            "tools": [
+                {
+                    "name": "find_movies",
+                    "description": "Find movie titles currently playing in theaters based on any description, genre, title words, etc.",
+                    "parameters": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "location": {
+                                "type": "STRING",
+                                "description": "The city and state, e.g. San Francisco, CA or a zip code e.g. 95616"
+                            },
+                            "description": {
+                                "type": "STRING",
+                                "description": "Any kind of description including category or genre, title words, attributes, etc."
+                            }
+                        },
+                        "required": ["description"]
+                    }
+                }
+            ],
+            "max_output_tokens": 500,
+            "history": []
+        }
+        # Generate HMAC signature
+        signature = self.generate_hmac_signature(self.secret_key, data)
+
+        # Send the request to the /generate_content endpoint
+        response = self.send_request(self.generate_content_url, data, signature)
+
+        # Assert response status
+        self.assertEqual(response.status_code, 200)
+
+        # Parse and validate the response
+        response_json = response.json()
+        self.assertIsInstance(response_json, list, "Response should be a list.")
+        self.assertGreater(len(response_json), 0, "Response list should not be empty.")
+
+        # Check the first part of the response for a functionCall
+        first_part = response_json[0]
+        self.assertIn("functionCall", first_part, "Response should contain a 'functionCall'.")
+        function_call = first_part["functionCall"]
+        self.assertIsInstance(function_call, dict, "'functionCall' should be a dictionary.")
+        self.assertEqual(function_call["name"], "find_movies", "Function call name should match 'find_movies'.")
+        self.assertIn("args", function_call, "'functionCall' should include 'args'.")
+        self.assertIsInstance(function_call["args"], dict, "'args' in functionCall should be a dictionary.")
+        self.assertEqual(function_call["args"]["location"], "San Francisco, CA",
+                         "Function args should include the correct location.")
 
 
 if __name__ == "__main__":

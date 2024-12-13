@@ -64,7 +64,7 @@ def has_valid_signature(request):
     return hmac.compare_digest(signature, expected_signature)
 
 
-def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp", response_schema=None, history=[]):
+def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp", response_schema=None, history=[], tools=[]):
     try:
         # Define default parameters
         default_parameters = {
@@ -107,24 +107,50 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
                     parts.append(types.Part(text=part))
             typed_history.append(types.Content(parts=parts, role=role))
 
-        chat = client.chats.create(model=model_name, history=typed_history, config={
+        config = {
             "temperature": default_parameters["temperature"],
             "top_p": default_parameters["top_p"],
             "max_output_tokens": default_parameters["max_output_tokens"],
             "candidate_count": 1,
             "response_schema": response_schema,
             "response_mime_type": response_schema and "application/json" or 'text/plain'
-        })
+        }
+
+        if tools and type(tools) == list and len(tools) > 0:
+            config["tools"] = []
+            for tool in tools:
+                print(tool)
+                config["tools"].append(types.Tool(
+                    function_declarations=[
+                        types.FunctionDeclaration(
+                            name=tool['name'],
+                            description=tool['description'],
+                            parameters=tool['parameters']
+                        )
+                    ]
+                ))
+            config['tool_config'] = types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(
+                    mode='ANY',
+                    allowed_function_names= [tool['name'] for tool in tools]
+                )
+            )
+
+        chat = client.chats.create(model=model_name, history=typed_history, config=config)
 
         # add message to chat
         response = chat.send_message(contents)
 
         # return the function call or the text response
         condidate = response.candidates[0]
+
         response_parts = []
         for part in condidate.content.parts:
             if part.function_call:
-                response_parts.append({"functionCall": part.function_call})
+                response_parts.append({"functionCall": {
+                    "name": part.function_call.name,
+                    "args": part.function_call.args
+                }})
             elif response_schema:
                 response_parts.append({"object": json.loads(part.text)})
             else:
@@ -154,6 +180,7 @@ def create_flask_app():
             model_name = incoming_request.get("model_name", "gemini-2.0-flash-exp")
             response_schema = incoming_request.get("response_schema", None)
             history = incoming_request.get("history", [])
+            tools = incoming_request.get("tools", [])
 
             if is_invalid_history(history):
                 return {"error": "Invalid history format"}, 400
@@ -164,7 +191,7 @@ def create_flask_app():
             if not has_valid_signature(request):
                 return {"error": "Invalid signature"}, 403
 
-            response_text = gemini_generate(contents, parameters, model_name, response_schema, history)
+            response_text = gemini_generate(contents, parameters, model_name, response_schema, history, tools)
             return response_text, 200, get_response_headers(request)
         except Exception as e:
             logging.error(f"Error in generate_content route: {str(e)}", exc_info=True)
@@ -188,6 +215,7 @@ def cloud_function_entrypoint(request):
             model_name = incoming_request.get("model_name", "gemini-1.5-flash")
             response_schema = incoming_request.get("response_schema", None)
             history = incoming_request.get("history", [])
+            tools = incoming_request.get("tools", [])
 
             if is_invalid_history(history):
                 return {"error": "Invalid history format"}, 400
@@ -198,7 +226,7 @@ def cloud_function_entrypoint(request):
             if not has_valid_signature(request):
                 return {"error": "Invalid signature"}, 403
 
-            response_text = gemini_generate(contents, parameters, model_name, response_schema, history)
+            response_text = gemini_generate(contents, parameters, model_name, response_schema, history, tools)
             return response_text, 200, get_response_headers(request)
 
         # Default response for unsupported paths
