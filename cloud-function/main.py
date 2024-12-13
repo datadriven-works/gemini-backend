@@ -117,14 +117,20 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
             candidate_count=1,
             response_schema=response_schema,
             response_mime_type=response_schema and "application/json" or 'text/plain',
-            system_instruction=system_instruction
+            system_instruction=system_instruction,
         )
 
         if tools and type(tools) == list and len(tools) > 0:
-            config["tools"] = []
+            config.tool_config = types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(
+                    mode='ANY',
+                    allowed_function_names= [tool['name'] for tool in tools]
+                )
+            )
+            config.tools = []
             for tool in tools:
                 print(tool)
-                config["tools"].append(types.Tool(
+                config.tools.append(types.Tool(
                     function_declarations=[
                         types.FunctionDeclaration(
                             name=tool['name'],
@@ -133,12 +139,6 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
                         )
                     ]
                 ))
-            config['tool_config'] = types.ToolConfig(
-                function_calling_config=types.FunctionCallingConfig(
-                    mode='ANY',
-                    allowed_function_names= [tool['name'] for tool in tools]
-                )
-            )
 
         response = client.models.generate_content(
             model=model_name,
