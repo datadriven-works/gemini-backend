@@ -64,7 +64,7 @@ def has_valid_signature(request):
     return hmac.compare_digest(signature, expected_signature)
 
 
-def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp", response_schema=None, history=[], tools=[]):
+def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp", response_schema=None, history=[], tools=[], system_instruction=None):
     try:
         # Define default parameters
         default_parameters = {
@@ -110,14 +110,15 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
         if contents:
             content_list.append(types.Content(parts=[types.Part(text=contents)], role="user"))
 
-        config = {
-            "temperature": default_parameters["temperature"],
-            "top_p": default_parameters["top_p"],
-            "max_output_tokens": default_parameters["max_output_tokens"],
-            "candidate_count": 1,
-            "response_schema": response_schema,
-            "response_mime_type": response_schema and "application/json" or 'text/plain'
-        }
+        config = types.GenerateContentConfig(
+            temperature=default_parameters["temperature"],
+            top_p=default_parameters["top_p"],
+            max_output_tokens=default_parameters["max_output_tokens"],
+            candidate_count=1,
+            response_schema=response_schema,
+            response_mime_type=response_schema and "application/json" or 'text/plain',
+            system_instruction=system_instruction
+        )
 
         if tools and type(tools) == list and len(tools) > 0:
             config["tools"] = []
@@ -185,7 +186,7 @@ def create_flask_app():
             response_schema = incoming_request.get("response_schema", None)
             history = incoming_request.get("history", [])
             tools = incoming_request.get("tools", [])
-
+            system_instruction = incoming_request.get("system_instruction", None)
             if is_invalid_history(history):
                 return {"error": "Invalid history format"}, 400
 
@@ -195,7 +196,7 @@ def create_flask_app():
             if not has_valid_signature(request):
                 return {"error": "Invalid signature"}, 403
 
-            response_text = gemini_generate(contents, parameters, model_name, response_schema, history, tools)
+            response_text = gemini_generate(contents, parameters, model_name, response_schema, history, tools, system_instruction)
             return response_text, 200, get_response_headers(request)
         except Exception as e:
             logging.error(f"Error in generate_content route: {str(e)}", exc_info=True)
@@ -220,6 +221,7 @@ def cloud_function_entrypoint(request):
             response_schema = incoming_request.get("response_schema", None)
             history = incoming_request.get("history", [])
             tools = incoming_request.get("tools", [])
+            system_instruction = incoming_request.get("system_instruction", None)
 
             if is_invalid_history(history):
                 return {"error": "Invalid history format"}, 400
@@ -230,7 +232,7 @@ def cloud_function_entrypoint(request):
             if not has_valid_signature(request):
                 return {"error": "Invalid signature"}, 403
 
-            response_text = gemini_generate(contents, parameters, model_name, response_schema, history, tools)
+            response_text = gemini_generate(contents, parameters, model_name, response_schema, history, tools, system_instruction)
             return response_text, 200, get_response_headers(request)
 
         # Default response for unsupported paths
