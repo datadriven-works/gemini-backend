@@ -116,9 +116,11 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
             max_output_tokens=default_parameters["max_output_tokens"],
             candidate_count=1,
             response_schema=response_schema,
-            response_mime_type=response_schema and "application/json" or 'text/plain',
-            system_instruction=system_instruction,
+            response_mime_type=response_schema and "application/json" or 'text/plain'
         )
+
+        if system_instruction:
+            config.system_instruction = system_instruction
 
         if tools and type(tools) == list and len(tools) > 0:
             config.tool_config = types.ToolConfig(
@@ -128,7 +130,6 @@ def gemini_generate(contents, parameters=None, model_name="gemini-2.0-flash-exp"
             )
             config.tools = []
             for tool in tools:
-                print(tool)
                 config.tools.append(types.Tool(
                     function_declarations=[
                         types.FunctionDeclaration(
