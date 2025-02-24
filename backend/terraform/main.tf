@@ -26,7 +26,6 @@ module "base-project-services" {
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
     "aiplatform.googleapis.com",
-    "bigquery.googleapis.com",
   ]
 }
 
