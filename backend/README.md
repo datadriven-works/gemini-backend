@@ -33,7 +33,7 @@ First create a file that will contain the LOOKER_AUTH_TOKEN and place it at the 
 If in the `/backend` cd back to root (ie. `cd ..`) and run the following command:
 
 ```bash
-openssl rand -base64 32 > .vertex_cf_auth_token
+openssl rand -base64 32 | tr -d '\n' > .vertex_cf_auth_token
 ```
 
 From the `/backend` directory run the following.

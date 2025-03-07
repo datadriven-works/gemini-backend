@@ -30,31 +30,32 @@ To set up and run the function locally, follow these steps:
 
 1. Create a virtual environment and activate it:
 
-    ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate
-    ```
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
 
 2. Create the vertex auth token
+
    ```
-   openssl rand -base64 32 > .vertex_cf_auth_token
+   openssl rand -base64 32 | tr -d '\n' > .vertex_cf_auth_token
    ```
 
 3. Navigate to the project directory and install the required dependencies:
 
-    ```bash
-    cd cloud-function
-    pip3 install -r requirements.txt
-    ```
+   ```bash
+   cd cloud-function
+   pip3 install -r requirements.txt
+   ```
 
 4. Run the function locally by executing the main script:
 
-    ```bash
-    PROJECT=XXXX LOCATION=us-central-1 VERTEX_CF_AUTH_TOKEN=$(cat ../.vertex_cf_auth_token) python main.py
-    ```
+   ```bash
+   PROJECT=XXXX LOCATION=us-central-1 VERTEX_CF_AUTH_TOKEN=$(cat ../.vertex_cf_auth_token) python main.py
+   ```
 
 5. Test calling the endpoint locally with a custom query and parameter declaration
-   
+
    ```bash
      python test.py
    ```
@@ -71,7 +72,7 @@ gcloud config set project dev-laraqui-gemini-11-25
 
 ## Model configuration
 
-By default, the cloud function will use a default model. However, you may want to test out different Gemini models are they are released. We have made the model name configurable via an environment variable. 
+By default, the cloud function will use a default model. However, you may want to test out different Gemini models are they are released. We have made the model name configurable via an environment variable.
 
 In development, you can run the main script with a new MODEL_NAME variable:
 
