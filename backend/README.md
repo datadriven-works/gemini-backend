@@ -1,4 +1,4 @@
-# Explore Assistant Backend
+# Looker Assistant Backend
 
 ## Overview
 
